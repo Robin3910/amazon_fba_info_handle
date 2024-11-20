@@ -120,9 +120,16 @@ class ExcelProcessor:
                 # 获取装箱信息
                 packing_info = self.packing_info_map.get(model, {})
                 if packing_info == {}:
-                    packing_info = self.packing_info_map.get(product_info.get('客户型号'), {})
+                    # 遍历装箱信息字典查找匹配的客户型号
+                    for packing_key in self.packing_info_map.keys():
+                        if not isinstance(packing_key, str):
+                            continue
+                        if product_info.get('客户型号') in packing_key:
+                            packing_info = self.packing_info_map[packing_key]
+                            break
+                    # packing_info = self.packing_info_map.get(product_info.get('客户型号'), {})
                 if packing_info == {}:
-                    print(f"未找到对应的装箱信息：{product_info['客户型号']}, 写入默认值")
+                    # print(f"未找到对应的装箱信息：{product_info['客户型号']}, 写入默认值")
                     packing_info = {
                         '普通装箱数': 40,
                         "危险品": False
