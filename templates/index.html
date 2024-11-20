@@ -119,7 +119,9 @@
     <h1>FBA文件处理</h1>
     <div class="upload-form">
         <form id="uploadForm">
-            <p>请选择FBA货件信息文件：</p>
+            <p>先从领星下载货件信息，操作如下图所示：</p>
+            <img src="{{ url_for('static', filename='Snipaste_2024-11-20_15-35-24.png') }}" alt="示例图片" style="max-width: 100%; height: auto; margin: 20px 0;">
+            <p>上传下载的FBA货件信息excel：</p>
             <input type="file" name="fba_file" accept=".xlsx,.xls" required>
             <button type="submit">上传并处理</button>
         </form>
