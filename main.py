@@ -2,6 +2,7 @@ from flask import Flask, request, send_file, render_template, url_for
 import os
 from werkzeug.utils import secure_filename
 import pandas as pd
+import openpyxl
 import datetime
 from typing import Dict, Any
 from concurrent.futures import ThreadPoolExecutor
@@ -55,7 +56,8 @@ class ExcelProcessor:
                 '型号': model,
                 '颜色': product_info[3],
                 '规格': product_info[1],
-                '建单数量': row['申报量']
+                '建单数量': row['申报量'],
+                'FNSKU': row['FNSKU']
             }
             
     def process_product_summary(self):
@@ -148,8 +150,8 @@ class ExcelProcessor:
                     '报关单价': '',
                     '平台售价': '',
                     '备注': '',
-                    '透明计划标签（MSKU）': '',
-                    '标签(FNSKU)': '',
+                    '透明计划标签（MSKU）': msku,
+                    '标签(FNSKU)': msku_info['FNSKU'],
                     '外箱标签': '',
                     '班级': ''
                 }
@@ -196,7 +198,25 @@ class TaskManager:
             timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             result_filename = f'result_{timestamp}.xlsx'
             result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
-            result_df.to_excel(result_path, index=False)
+            
+            # 创建ExcelWriter对象以设置单元格格式
+            writer = pd.ExcelWriter(result_path, engine='openpyxl')
+            result_df.to_excel(writer, index=False)
+            
+            # 获取工作表
+            worksheet = writer.sheets['Sheet1']
+            
+            # 设置所有列的宽度为12
+            for col in worksheet.columns:
+                worksheet.column_dimensions[col[0].column_letter].width = 20
+                
+            # 设置所有行的高度为12
+            for row in worksheet.rows:
+                worksheet.row_dimensions[row[0].row].height = 35
+                for cell in row:
+                    cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+      
+            writer.close()
             
             with self.lock:
                 self.results[task_id] = {
