@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FBA文件处理</title>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .upload-form {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            display: none;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            margin: 10px auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>FBA文件处理系统</h1>
+    <div class="upload-form">
+        <form id="uploadForm">
+            <p>请选择FBA货件信息文件：</p>
+            <input type="file" name="fba_file" accept=".xlsx,.xls" required>
+            <button type="submit">上传并处理</button>
+        </form>
+    </div>
+    <div id="result"></div>
+
+    <script>
+        const POLL_INTERVAL = 2000; // 轮询间隔2秒
+        let pollTimer = null;
+
+        // 轮询任务状态
+        async function pollTaskStatus(taskId) {
+            try {
+                const response = await fetch(`/task/${taskId}`);
+                const data = await response.json();
+                const resultDiv = document.getElementById('result');
+
+                switch(data.status) {
+                    case 'completed':
+                        // 任务完成，清除轮询定时器
+                        clearInterval(pollTimer);
+                        resultDiv.innerHTML = `
+                            <p class="success">文件处理成功！</p>
+                            <p><a href="${data.download_url}">点击下载处理结果</a></p>
+                        `;
+                        break;
+                        
+                    case 'error':
+                        // 发生错误，清除轮询定时器
+                        clearInterval(pollTimer);
+                        resultDiv.innerHTML = `<p class="error">处理失败：${data.message}</p>`;
+                        break;
+                        
+                    case 'pending':
+                        // 任务仍在处理中
+                        resultDiv.innerHTML = `
+                            <p>文件正在处理中，请稍候...</p>
+                            <div class="loading-spinner"></div>
+                        `;
+                        break;
+                        
+                    case 'not_found':
+                        // 任务不存在
+                        clearInterval(pollTimer);
+                        resultDiv.innerHTML = `<p class="error">任务不存在或已过期</p>`;
+                        break;
+                }
+            } catch (error) {
+                clearInterval(pollTimer);
+                resultDiv.innerHTML = `<p class="error">查询任务状态失败：${error.message}</p>`;
+            }
+        }
+
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            
+            try {
+                // 清除之前的轮询定时器（如果存在）
+                if (pollTimer) {
+                    clearInterval(pollTimer);
+                }
+
+                // 显示上传中状态
+                resultDiv.innerHTML = '<p>文件上传中，请稍候...</p>';
+                
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'accepted') {
+                    // 开始轮询任务状态
+                    resultDiv.innerHTML = `
+                        <p>文件已上传，正在处理中...</p>
+                        <div class="loading-spinner"></div>
+                    `;
+                    pollTimer = setInterval(() => pollTaskStatus(data.task_id), POLL_INTERVAL);
+                } else {
+                    resultDiv.innerHTML = `<p class="error">上传失败：${data.message}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">上传失败：${error.message}</p>`;
+            }
+        };
+    </script>
+</body>
+</html>
