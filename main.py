@@ -16,7 +16,6 @@ class ExcelProcessor:
         self.fba_shipment = None
         self.product_summary = None
         self.packing_list = None
-        self.shipment_info = {}
         self.msku_map = {}
         self.product_info_map = {}
         self.packing_info_map = {}
@@ -33,19 +32,30 @@ class ExcelProcessor:
         
     def process_fba_shipment(self):
         """处理FBA货件信息"""
-        # 获取基本信息
-        first_row = self.fba_shipment.iloc[0]
-        self.shipment_info = {
-            '货件单号': first_row['货件单号'],
-            '店铺': first_row['店铺'],
-            '国家': first_row['国家'],
-            '创建日期': first_row['创建时间'],
-            '物流中心编码': first_row['物流中心编码']
-        }
+        # 根据备货单号判断FBA文件类型
+        # 类型A是FBA发货单 本地发往FBA仓库
+        # 类型B是海外仓发货单，本地发往海外仓库
+
+        countries = ['德国', '法国', '意大利', '西班牙', '英国', '荷兰', '比利时', '瑞典', '波兰', 
+                    '澳大利亚', '迪拜', '美国', '加拿大', '墨西哥', '日本', '沙特阿拉伯']
         
-        # 处理MSKU信息
+        # 判断文件类型
+        fba_type = 'A' if '备货单号' not in self.fba_shipment.columns else 'B'
+        tmp_info = {}
         for _, row in self.fba_shipment.iterrows():
-            msku = row['MSKU']
+
+            # 获取国家信息
+            if fba_type == 'A':
+                country = row['国家']
+
+            if fba_type == 'B':
+                warehouse_name = row['收货仓库']
+                for c in countries:
+                    if c in warehouse_name:
+                        country = c
+                        break
+        
+            msku = row['MSKU'] if fba_type == 'A' else row['sku']
             product_name = row['品名']
             
             # 解析品名信息
@@ -57,9 +67,34 @@ class ExcelProcessor:
                 '型号': model,
                 '颜色': product_info[3],
                 '规格': product_info[1],
-                '建单数量': row['申报量'],
-                'FNSKU': row['FNSKU']
+                '建单数量': row['申报量'] if fba_type == 'A' else row['备货数量'],
+                'FNSKU': row['FNSKU'] if fba_type == 'A' else '',
+                'fba_type': fba_type,
+                '货件单号': row['货件单号'] if fba_type == 'A' else row['备货单号'],
+                '店铺': row['店铺'] if fba_type == 'A' else row['收货仓库'],
+                '国家': country,
+                '创建日期': row['创建时间'],
+                '物流中心编码': row['物流中心编码'] if fba_type == 'A' else ''
             }
+            # 如果当前msku包含完整信息，保存到临时map中
+            msku_info = self.msku_map[msku]
+            if pd.isna(msku_info['国家']):
+                self.msku_map[msku]['货件单号'] = tmp_info['货件单号']
+                self.msku_map[msku]['国家'] = tmp_info['国家']
+                self.msku_map[msku]['店铺'] = tmp_info['店铺']
+                self.msku_map[msku]['创建日期'] = tmp_info['创建日期']
+                self.msku_map[msku]['物流中心编码'] = tmp_info['物流中心编码']
+
+            else:
+                tmp_info = {
+                    '货件单号': msku_info['货件单号'],
+                    '国家': msku_info['国家'], 
+                    '店铺': msku_info['店铺'],
+                    '创建日期': msku_info['创建日期'],
+                    '物流中心编码': msku_info['物流中心编码']
+                }
+
+            
             
     def process_product_summary(self):
         """处理品号汇总信息"""
@@ -90,22 +125,44 @@ class ExcelProcessor:
         for msku, msku_info in self.msku_map.items():
             models = msku_info['型号'].split('/')
             # 欧洲地区：'德国', '法国', '意大利', '西班牙', '英国', '荷兰', '比利时', '瑞典', '波兰'
-            
-            # 根据店铺名称确定品牌
-            if 'charmast'.lower() in self.shipment_info['店铺'].lower():
-                target_brand = "超麦"
-            elif 'chenying'.lower() in self.shipment_info['店铺'].lower():
-                target_brand = "晨樱" 
-            elif 'veger'.lower() in self.shipment_info['店铺'].lower():
-                target_brand = "艾美柯"
-            elif 'vrurc'.lower() in self.shipment_info['店铺'].lower():
-                target_brand = "创立嘉城"
-            elif 'GH'.lower() in self.shipment_info['店铺'].lower():
-                target_brand = "谷和"
+            if msku_info['fba_type'] == 'A':
+                # 根据店铺名称确定品牌
+                if 'charmast'.lower() in msku_info['店铺'].lower():
+                    target_brand = "超麦"
+                elif 'chenying'.lower() in msku_info['店铺'].lower():
+                    target_brand = "晨樱" 
+                elif 'veger'.lower() in msku_info['店铺'].lower():
+                    target_brand = "艾美柯"
+                elif 'vrurc'.lower() in msku_info['店铺'].lower():
+                    target_brand = "创立嘉城"
+                elif 'GH'.lower() in msku_info['店铺'].lower():
+                    target_brand = "谷和"
+            else:
+                target_brand = msku_info['店铺']
+                if '超麦' in msku_info['店铺']:
+                    target_brand = "超麦"
+                elif '晨樱' in msku_info['店铺']:
+                    target_brand = "晨樱" 
+                elif '艾美柯' in msku_info['店铺']:
+                    target_brand = "艾美柯"
+                elif '创立嘉城'.lower() in msku_info['店铺'].lower():
+                    target_brand = "创立嘉城"
+                elif '创立嘉诚'.lower() in msku_info['店铺'].lower():
+                    target_brand = "创立嘉城"
+                elif '谷和'.lower() in msku_info['店铺'].lower():
+                    target_brand = "谷和"
+                elif 'charmast'.lower() in msku_info['店铺'].lower():
+                    target_brand = "超麦"
+                elif 'chenying'.lower() in msku_info['店铺'].lower():
+                    target_brand = "晨樱" 
+                elif 'veger'.lower() in msku_info['店铺'].lower():
+                    target_brand = "艾美柯"
+                elif 'vrurc'.lower() in msku_info['店铺'].lower():
+                    target_brand = "创立嘉城"
+                elif 'GH'.lower() in msku_info['店铺'].lower():
+                    target_brand = "谷和"
 
-            for model in models:
-                # target_brand = "超麦" if self.shipment_info['国家'] == "美国" else "晨樱"
-                
+            for model in models:                
                 # 在product_info_map中查找对应的产品信息
                 product_info = None
                 for _, info in self.product_info_map.items():
@@ -138,9 +195,9 @@ class ExcelProcessor:
                 
                 result_row = {
                     '账号': target_brand,
-                    '货件日期': self.shipment_info['创建日期'],
-                    '国家': self.shipment_info['国家'],
-                    '货件编码': self.shipment_info['货件单号'],
+                    '货件日期': msku_info['创建日期'],
+                    '国家': msku_info['国家'],
+                    '货件编码': msku_info['货件单号'],
                     '纸箱编号': '',
                     '产品型号': f"{product_info['客户型号']}{product_info['颜色']}",
                     '品号': model,
@@ -154,33 +211,48 @@ class ExcelProcessor:
                     '装箱规格个/箱': packing_info.get('普通装箱数', 0),
                     '物流渠道': '',
                     '货件特殊说明': '',
-                    '物流中心编码': self.shipment_info['物流中心编码'],
+                    '物流中心编码': msku_info['物流中心编码'],
                     '报关单价': '',
                     '平台售价': '',
                     '备注': '',
-                    '透明计划标签（MSKU）': msku,
+                    '透明计划标签（MSKU）': msku if msku_info['fba_type'] == 'A' else '',
                     '标签(FNSKU)': msku_info['FNSKU'],
                     '外箱标签': '',
                     '班级': ''
                 }
                 result_data.append(result_row)
         
-        # 计算单票合计/箱
-        total_boxes = sum(row['件数/箱'] for row in result_data)
+        # 按货件单号分组计算单票合计/箱
+        shipment_boxes = {}
         for row in result_data:
-            row['单票合计/箱'] = total_boxes
+            shipment_id = row['货件编码']
+            boxes = row['件数/箱']
+            if shipment_id not in shipment_boxes:
+                shipment_boxes[shipment_id] = 0
+            shipment_boxes[shipment_id] += boxes
+            
+        # 更新每行的单票合计/箱
+        for row in result_data:
+            row['单票合计/箱'] = shipment_boxes[row['货件编码']]
 
-        # 计算每个MSKU的纸箱编号
-        start_box_num = 1
+        # 计算每个货件的纸箱编号
+        shipment_start_box = {}
         for row in result_data:
+            shipment_id = row['货件编码']
+            if shipment_id not in shipment_start_box:
+                shipment_start_box[shipment_id] = 1
+                
             boxes = int(row['件数/箱'])
             if boxes > 0:
+                start_box_num = shipment_start_box[shipment_id]
                 end_box_num = start_box_num + boxes - 1
                 row['纸箱编号'] = f"{start_box_num}-{end_box_num}"
-                start_box_num = end_box_num + 1
-        
-        
-        return pd.DataFrame(result_data)
+                shipment_start_box[shipment_id] = end_box_num + 1
+                
+        df = pd.DataFrame(result_data)
+        # 按创建日期降序排序
+        df = df.sort_values(by='货件日期', ascending=False)
+        return df
 
 class TaskManager:
     def __init__(self, max_workers=3):

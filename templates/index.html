@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>FBA文件处理</title>
+    <title>工厂发货单文件处理</title>
     <meta charset="utf-8">
     <style>
         :root {
@@ -116,12 +116,24 @@
     </style>
 </head>
 <body>
-    <h1>FBA文件处理</h1>
+    <h1>工厂发货单文件处理</h1>
     <div class="upload-form">
         <form id="uploadForm">
-            <p>先从领星下载货件信息，操作如下图所示：</p>
+            <h2>一、从领星下载货件信息文件</h2>
+            <h3>1.1、下载FBA货件信息</h3>
+            <p>从领星下载FBA货件信息，可以一次性勾选多个FBA货件统一下载，操作如下图所示：</p>
             <img src="{{ url_for('static', filename='Snipaste_2024-11-20_15-35-24.png') }}" alt="示例图片" style="max-width: 100%; height: auto; margin: 20px 0;">
-            <p>上传下载的FBA货件信息excel：</p>
+            导出弹窗中按照默认配置即可，图片不要勾选：
+            <img src="{{ url_for('static', filename='Snipaste_2024-11-21_10-47-23.png') }}" alt="示例图片" style="max-width: 100%; height: auto; margin: 20px 0;">
+
+            <h3>1.2、下载海外仓货件信息</h3>
+            <p>从领星下载海外仓备货单信息，可以一次性勾选多个备货单统一下载，操作如下图所示：</p>
+            <img src="{{ url_for('static', filename='70628DB2-8585-4656-854A-5663DEF7DB77.png') }}" alt="示例图片" style="max-width: 100%; height: auto; margin: 20px 0;">
+            <p>点击下载后，导出内容如下图所示，导出【基础信息】和【产品信息】，图片不要勾选：</p>
+            <img src="{{ url_for('static', filename='Snipaste_2024-11-21_09-39-43.png') }}" alt="示例图片" style="max-width: 100%; height: auto; margin: 20px 0;">
+            
+            <h2>二、上传领星下载的货件信息文件进行处理</h2>
+            <p>每次只能处理一份文件</p>
             <input type="file" name="fba_file" accept=".xlsx,.xls" required>
             <button type="submit">上传并处理</button>
         </form>
